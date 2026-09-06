@@ -113,26 +113,26 @@ nav = st.sidebar.radio(
 )
 
 # Fetch active timer
-active_timer = api_get("/tasks/active/timer")
-
 import streamlit.components.v1 as components
+active_timer = api_get("/tasks/active/timer")
 
 # Top Header / Active Timer Banner (Live Real-Time Ticking Clock)
 if active_timer and active_timer.get("active"):
     task_id = active_timer['task_id']
     task_title_escaped = active_timer['task_title'].replace('"', '&quot;').replace("'", "&#39;")
     project_escaped = active_timer['project'].replace('"', '&quot;').replace("'", "&#39;")
-    start_time_iso = active_timer['start_time']
+    elapsed_seconds = int(active_timer.get('elapsed_seconds', 0))
+    is_idle = bool(active_timer.get('flagged_idle', False)) or (elapsed_seconds >= 7200)
 
     timer_html = f"""
     <div style="
         background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
         border: 2px solid #3b82f6;
         border-radius: 12px;
-        padding: 16px 22px;
+        padding: 16px 24px;
         color: #f8fafc;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.3);
+        box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.35);
     ">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
             <div style="display: flex; align-items: center; gap: 14px;">
@@ -141,12 +141,12 @@ if active_timer and active_timer.get("active"):
                     height: 14px;
                     background-color: #ef4444;
                     border-radius: 50%;
-                    box-shadow: 0 0 12px #ef4444;
+                    box-shadow: 0 0 14px #ef4444;
                     animation: pulse 1.5s infinite;
                 "></div>
                 <div>
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="background: #ef4444; color: white; font-weight: 700; font-size: 0.7rem; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px;">ACTIVE TIMER</span>
+                        <span style="background: #ef4444; color: white; font-weight: 700; font-size: 0.72rem; padding: 3px 8px; border-radius: 4px; letter-spacing: 0.5px;">● ACTIVE TIMER</span>
                         <span style="color: #93c5fd; font-size: 0.85rem; font-weight: 500;">📁 {project_escaped}</span>
                     </div>
                     <h2 style="margin: 4px 0 0 0; font-size: 1.35rem; font-weight: 700; color: #ffffff;">{task_title_escaped}</h2>
@@ -155,34 +155,22 @@ if active_timer and active_timer.get("active"):
             <div style="display: flex; align-items: center; gap: 16px;">
                 <div id="live-timer-clock" style="
                     font-family: 'JetBrains Mono', 'Courier New', monospace;
-                    font-size: 2.4rem;
+                    font-size: 2.6rem;
                     font-weight: 700;
                     color: #60a5fa;
                     letter-spacing: 2px;
-                    text-shadow: 0 0 12px rgba(96, 165, 250, 0.4);
-                ">00:00:00</div>
-                <button id="live-stop-btn" onclick="stopActiveTimer()" style="
-                    background-color: #ef4444;
-                    color: white;
-                    border: none;
-                    padding: 10px 18px;
-                    font-size: 0.95rem;
-                    font-weight: 700;
-                    border-radius: 8px;
-                    cursor: pointer;
-                    box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.3);
-                    transition: all 0.2s ease;
-                ">⏹️ Stop Timer</button>
+                    text-shadow: 0 0 16px rgba(96, 165, 250, 0.5);
+                ">--:--:--</div>
             </div>
         </div>
         <div id="idle-warning-box" style="
-            display: none;
+            display: {'block' if is_idle else 'none'};
             background: linear-gradient(135deg, #78350f 0%, #451a03 100%);
             border: 1px solid #f59e0b;
             color: #fef3c7;
             padding: 10px 14px;
             border-radius: 8px;
-            margin-top: 12px;
+            margin-top: 14px;
             font-size: 0.88rem;
         ">
             ⚠️ <strong>Idle Alert:</strong> This timer has been running continuously for over 2 hours! Remember to review this session.
@@ -192,92 +180,61 @@ if active_timer and active_timer.get("active"):
     <style>
     @keyframes pulse {{
         0% {{ transform: scale(0.95); opacity: 0.8; }}
-        50% {{ transform: scale(1.15); opacity: 1; }}
+        50% {{ transform: scale(1.2); opacity: 1; }}
         100% {{ transform: scale(0.95); opacity: 0.8; }}
-    }}
-    #live-stop-btn:hover {{
-        background-color: #dc2626 !important;
-        transform: translateY(-1px);
     }}
     </style>
 
     <script>
     (function() {{
-        const startTimeStr = "{start_time_iso}";
-        const startTimeMs = new Date(startTimeStr).getTime();
-        const taskId = {task_id};
-        const apiUrl = "{API_BASE_URL}";
+        let elapsedSec = {elapsed_seconds};
+        const clockEl = document.getElementById('live-timer-clock');
+        const idleEl = document.getElementById('idle-warning-box');
 
-        function formatTime(totalSec) {{
-            if (totalSec < 0) totalSec = 0;
-            const h = Math.floor(totalSec / 3600);
-            const m = Math.floor((totalSec % 3600) / 60);
-            const s = totalSec % 60;
+        function formatTime(s) {{
+            if (isNaN(s) || s < 0) s = 0;
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            const sec = s % 60;
             return String(h).padStart(2, '0') + ':' + 
                    String(m).padStart(2, '0') + ':' + 
-                   String(s).padStart(2, '0');
+                   String(sec).padStart(2, '0');
         }}
 
-        function tick() {{
-            const now = Date.now();
-            const diffSec = Math.floor((now - startTimeMs) / 1000);
-            const clockEl = document.getElementById('live-timer-clock');
+        // Initialize clock immediately with server elapsed seconds
+        if (clockEl) {{
+            clockEl.innerText = formatTime(elapsedSec);
+        }}
+
+        // Increment smoothly every second
+        setInterval(function() {{
+            elapsedSec++;
             if (clockEl) {{
-                clockEl.innerText = formatTime(diffSec);
+                clockEl.innerText = formatTime(elapsedSec);
             }}
-            const idleEl = document.getElementById('idle-warning-box');
             if (idleEl) {{
-                if (diffSec >= 7200) {{
+                if (elapsedSec >= 7200) {{
                     idleEl.style.display = 'block';
-                }} else {{
-                    idleEl.style.display = 'none';
                 }}
             }}
-        }}
-
-        tick();
-        const intervalId = setInterval(tick, 1000);
-
-        window.stopActiveTimer = function() {{
-            const btn = document.getElementById('live-stop-btn');
-            if (btn) {{
-                btn.innerText = 'Stopping...';
-                btn.disabled = true;
-            }}
-            clearInterval(intervalId);
-            fetch(apiUrl + '/tasks/' + taskId + '/stop', {{ method: 'POST' }})
-                .then(res => {{
-                    try {{
-                        window.parent.location.reload();
-                    }} catch(e) {{
-                        window.location.reload();
-                    }}
-                }})
-                .catch(err => {{
-                    alert('Error stopping timer: ' + err);
-                    if (btn) {{
-                        btn.innerText = '⏹️ Stop Timer';
-                        btn.disabled = false;
-                    }}
-                }});
-        }};
+        }}, 1000);
     }})();
     </script>
     """
-    components.html(timer_html, height=140)
+    components.html(timer_html, height=135 if is_idle else 95)
 
-    col1, col2, col3 = st.columns([1, 1, 4])
-    with col1:
-        if st.button("⏹️ Stop Timer (Python)", type="primary", use_container_width=True):
+    action_col1, action_col2, action_col3 = st.columns([3, 2, 5])
+    with action_col1:
+        if st.button("⏹️ Stop Active Timer", type="primary", use_container_width=True, key="header_stop_active_timer"):
             res = api_post(f"/tasks/{active_timer['task_id']}/stop")
             if res and res.status_code == 200:
                 st.toast("Timer stopped and session recorded!", icon="✅")
-                time_module.sleep(0.5)
+                time_module.sleep(0.3)
                 st.rerun()
             else:
-                st.error("Failed to stop timer.")
-    with col2:
-        if st.button("🔄 Sync Timer", use_container_width=True):
+                st.error("Failed to stop timer. Check backend status.")
+    with action_col2:
+        if st.button("🔄 Sync Timer Status", use_container_width=True, key="header_sync_active_timer"):
             st.rerun()
 
 # ----------------- VIEW 1: DASHBOARD & TIMER -----------------
@@ -320,11 +277,17 @@ if nav == "📊 Dashboard & Timer":
                     with t_col3:
                         if task.get("is_active"):
                             if st.button("⏹️ Stop", key=f"stop_{task['id']}", type="primary", use_container_width=True):
-                                api_post(f"/tasks/{task['id']}/stop")
+                                res = api_post(f"/tasks/{task['id']}/stop")
+                                if res and res.status_code == 200:
+                                    st.toast("Timer stopped and logged!", icon="⏹️")
+                                time_module.sleep(0.3)
                                 st.rerun()
                         else:
                             if st.button("▶️ Start", key=f"start_{task['id']}", use_container_width=True):
-                                api_post(f"/tasks/{task['id']}/start")
+                                res = api_post(f"/tasks/{task['id']}/start")
+                                if res and res.status_code == 200:
+                                    st.toast(f"Timer started: {task['title'][:25]}...", icon="⏱️")
+                                time_module.sleep(0.3)
                                 st.rerun()
                     st.divider()
 
@@ -434,11 +397,17 @@ elif nav == "📋 Task Management":
                     with ec3:
                         if t.get("is_active"):
                             if st.button("⏹️ Stop Timer", key=f"m_stop_{t['id']}", type="primary"):
-                                api_post(f"/tasks/{t['id']}/stop")
+                                res = api_post(f"/tasks/{t['id']}/stop")
+                                if res and res.status_code == 200:
+                                    st.toast("Timer stopped and logged!", icon="⏹️")
+                                time_module.sleep(0.3)
                                 st.rerun()
                         else:
                             if st.button("▶️ Start Timer", key=f"m_start_{t['id']}"):
-                                api_post(f"/tasks/{t['id']}/start")
+                                res = api_post(f"/tasks/{t['id']}/start")
+                                if res and res.status_code == 200:
+                                    st.toast("Timer started!", icon="⏱️")
+                                time_module.sleep(0.3)
                                 st.rerun()
                         
                         if st.button("🗑️ Delete Task", key=f"del_{t['id']}"):
