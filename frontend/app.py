@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import requests
 import pandas as pd
@@ -65,7 +66,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Configuration
-API_BASE_URL = st.sidebar.text_input("Backend API URL", value="http://127.0.0.1:8000")
+DEFAULT_API_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+API_BASE_URL = st.sidebar.text_input("Backend API URL", value=DEFAULT_API_URL)
 
 # API Helper Functions
 def api_get(endpoint: str, params: dict = None):
