@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Developer Task Time-Tracker</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <header class="navbar">
+      <div class="brand">
+        <span class="logo-icon">⏱️</span>
+        <div>
+          <h1>DevTracker</h1>
+          <p class="subtitle">Lightweight Developer Task & Time Tracking</p>
+        </div>
+      </div>
+      <div class="actions">
+        <a href="/docs" target="_blank" class="btn btn-secondary">API Docs</a>
+        <a href="/export/csv" class="btn btn-primary" download>Export CSV</a>
+      </div>
+    </header>
+
+    <!-- Active Timer Widget -->
+    <section id="active-timer-card" class="timer-card hidden">
+      <div class="timer-info">
+        <span class="pulse-indicator"></span>
+        <div>
+          <span class="active-badge">ACTIVE TIMER</span>
+          <h2 id="active-task-title">Task Name</h2>
+          <p id="active-task-project" class="project-tag">Project</p>
+        </div>
+      </div>
+      <div class="timer-actions">
+        <div id="active-timer-display" class="timer-clock">00:00:00</div>
+        <button id="stop-timer-btn" class="btn btn-danger">Stop Timer</button>
+      </div>
+    </section>
+
+    <!-- Idle Warning Banner -->
+    <div id="idle-warning" class="alert alert-warning hidden">
+      ⚠️ <strong>Idle Alert:</strong> Timer has been running uninterrupted for over 2 hours! Remember to review this session.
+    </div>
+
+    <!-- Main Grid -->
+    <div class="grid-layout">
+      <!-- Left Column: Tasks -->
+      <section class="card tasks-section">
+        <div class="card-header">
+          <h2>Tasks</h2>
+          <button id="open-task-modal-btn" class="btn btn-sm btn-primary">+ New Task</button>
+        </div>
+
+        <div class="filter-bar">
+          <input type="text" id="task-search" placeholder="Search tasks or projects...">
+          <select id="status-filter">
+            <option value="">All Statuses</option>
+            <option value="todo">Todo</option>
+            <option value="in-progress">In Progress</option>
+            <option value="done">Done</option>
+          </select>
+        </div>
+
+        <div id="task-list" class="task-list">
+          <div class="loading">Loading tasks...</div>
+        </div>
+      </section>
+
+      <!-- Right Column: Summary Report -->
+      <section class="card summary-section">
+        <div class="card-header">
+          <h2>Summary Report</h2>
+          <div class="range-tabs">
+            <button class="tab-btn" data-range="day">Day</button>
+            <button class="tab-btn active" data-range="week">Week</button>
+            <button class="tab-btn" data-range="month">Month</button>
+          </div>
+        </div>
+
+        <div class="metrics-row">
+          <div class="metric-box">
+            <span class="metric-label">Total Time</span>
+            <span id="metric-total-time" class="metric-val">0h 0m</span>
+          </div>
+          <div class="metric-box">
+            <span class="metric-label">Sessions</span>
+            <span id="metric-total-sessions" class="metric-val">0</span>
+          </div>
+          <div class="metric-box">
+            <span class="metric-label">Idle Flags</span>
+            <span id="metric-idle-count" class="metric-val">0</span>
+          </div>
+        </div>
+
+        <h3>Time by Project</h3>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Hours</th>
+                <th>Sessions</th>
+              </tr>
+            </thead>
+            <tbody id="project-summary-body">
+              <tr><td colspan="3" class="text-center">No data recorded</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 style="margin-top: 24px;">Time by Task</h3>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th>Project</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="task-summary-body">
+              <tr><td colspan="3" class="text-center">No data recorded</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Create Task Modal -->
+  <div id="task-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Create New Task</h3>
+        <button id="close-task-modal" class="close-btn">&times;</button>
+      </div>
+      <form id="create-task-form">
+        <div class="form-group">
+          <label for="task-title">Task Title *</label>
+          <input type="text" id="task-title" required placeholder="e.g. Implement OAuth token refresh">
+        </div>
+        <div class="form-group">
+          <label for="task-project">Project / Tag *</label>
+          <input type="text" id="task-project" required placeholder="e.g. Auth Service">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="task-priority">Priority</label>
+            <select id="task-priority">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="task-status">Status</label>
+            <select id="task-status">
+              <option value="todo" selected>Todo</option>
+              <option value="in-progress">In Progress</option>
+              <option value="done">Done</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="cancel-task-btn" class="btn btn-secondary">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Task</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
